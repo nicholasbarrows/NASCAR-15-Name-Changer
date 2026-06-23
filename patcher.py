@@ -53,8 +53,8 @@ drivers = [
     DriverData("Josh Wise", 0x11553, 31),
     DriverData("Austin Dillon", 0x14DE7, 29),
     DriverData("Cole Whitt", 0x14E05, 31),
-    DriverData("Kyle Larson", 0x1B3A3, 31), # NOTE: Overwrites strings saying "Window", "Side", and "Career Schemes".
-    DriverData("Justin Allgaier", 0x1C0A7, 31), # NOTE: going beyond 28 characters overwrites string saying "Engine"
+    DriverData("Kyle Larson", 0x1B3A3, 31), # NOTE: Overwrites strings containing "Window", "Side", and "Career Schemes".
+    DriverData("Justin Allgaier", 0x1C0A7, 31), # NOTE: going beyond 28 characters overwrites string containing "Engine"
     DriverData("Michael Annett", 0x1C133, 31),  # NOTE: Beyond 29 overwrites Brake Indicator tooltip
     DriverData("Chase Elliott", 0x1C1C8, 31),
     DriverData("Bubba Wallace Jr.", 0x1C23C, 31),
@@ -64,12 +64,12 @@ drivers = [
     DriverData("Jeb Burton", 0x1C7E0, 31) # NOTE: Beyond 24 overwrites Go Green Racing's name
 ]
 
-# Function for patching LDA file
+# Function for patching ARCHIVE0.AR file
 def patch_file(replacements: dict,
                safe_mode: bool = True,
                game_dir: str | None = None):
 
-    # Open input and output files as binary
+    # Open ARCHIVE0.AR file in binary
     with open(f"{game_dir}/ARCHIVE0.AR", "r+b") as archive_file:
         # TEXT0500.LDA in ARCHIVE0.AR starts at 0x2C7A1498
         offset = 0x2C7A1498
@@ -96,5 +96,5 @@ def patch_file(replacements: dict,
             archive_position = offset + d.start_byte
             archive_file.seek(archive_position)
 
-            # Write replacement name and NULL
+            # Write replacement name and NULL byte
             archive_file.write(encoded_name + b'\x00')
