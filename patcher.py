@@ -1,23 +1,12 @@
 from dataclasses import dataclass
 import os
-import subprocess
 import sys
-
-# Disable if wanting to check the LDA file afterwards
-DELETE_OUTPUT = True
 
 # Needed for making executeable file
 def resource_path(relative_path):
     if hasattr(sys, "_MEIPASS"):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("."), relative_path)
-
-INPUT_FILE = resource_path("Quickbms/text.bin")
-OUTPUT_FILE = resource_path("Quickbms/Patch/NAS4/LANG/TEXT0500.LDA")
-
-quickbms = resource_path("Quickbms/quickbms.exe")
-bms_script = resource_path("Quickbms/nascar2011.bms")
-patch_dir = resource_path("Quickbms/Patch")
 
 @dataclass
 class DriverData:
@@ -64,8 +53,8 @@ drivers = [
     DriverData("Josh Wise", 0x11553, 31),
     DriverData("Austin Dillon", 0x14DE7, 29),
     DriverData("Cole Whitt", 0x14E05, 31),
-    DriverData("Kyle Larson", 0x1B3A3, 31), # NOTE: Overwrites strings saying "Window", "Side", and "Career Schemes".
-    DriverData("Justin Allgaier", 0x1C0A7, 31), # NOTE: going beyond 28 characters overwrites string saying "Engine"
+    DriverData("Kyle Larson", 0x1B3A3, 31), # NOTE: Overwrites strings containing "Window", "Side", and "Career Schemes".
+    DriverData("Justin Allgaier", 0x1C0A7, 31), # NOTE: going beyond 28 characters overwrites string containing "Engine"
     DriverData("Michael Annett", 0x1C133, 31),  # NOTE: Beyond 29 overwrites Brake Indicator tooltip
     DriverData("Chase Elliott", 0x1C1C8, 31),
     DriverData("Bubba Wallace Jr.", 0x1C23C, 31),
@@ -75,76 +64,62 @@ drivers = [
     DriverData("Jeb Burton", 0x1C7E0, 31) # NOTE: Beyond 24 overwrites Go Green Racing's name
 ]
 
-# Create a map from the list
-driver_map = {d.start_byte: d for d in drivers}
-
-# Function for patching LDA file
+# Function for patching ARCHIVE0.AR file
 def patch_file(replacements: dict,
-               input_file: str = INPUT_FILE,
-               output_file: str = OUTPUT_FILE,
                safe_mode: bool = True,
+               overwrite_hornish: bool = False,
                game_dir: str | None = None):
 
-    # Open input and output files as binary
-    with open(input_file, "rb") as src, open(output_file, "wb") as out:
-        # offset will track where we are in the file
-        offset = 0
+    # Open ARCHIVE0.AR file in binary
+    with open(f"{game_dir}/ARCHIVE0.AR", "r+b") as archive_file:
+        # TEXT0500.LDA in ARCHIVE0.AR starts at 0x2C7A1498
+        offset = 0x2C7A1498
 
-        while True:
-            # Read one byte at a time
-            byte = src.read(1)
-            if not byte:
-                # End of file
-                break
+        # iterate over drivers
+        for d in drivers:
+            # Skip Sam Hornish if his name is being overwritten
+            if overwrite_hornish and d.driver_name == "Sam Hornish Jr.":
+                continue
 
-            # If the byte we're at is in one of the 46 where a driver name starts, we need to replace the name
-            if offset in driver_map:
-                # Get replacement name from driver map
-                d = driver_map[offset]
-                new_name = replacements.get(d.driver_name, d.driver_name)
+            new_name = replacements.get(d.driver_name, d.driver_name)
 
-                # Encode name to place as bytes
-                encoded_name = new_name.encode("ascii")
+            # Encode name to place as bytes
+            encoded_name = new_name.encode("ascii")
 
-                # Safe mode: restrict max_length to original name length
-                effective_max = len(d.driver_name) if safe_mode else d.max_length
+            # Safe mode: restrict max_length to original name length
+            effective_max = len(d.driver_name) if safe_mode else d.max_length
 
-                # Raise error if value exceeds expected max, shouldn't be possible through the text validation
-                # Ignore this check on Harvick. Bad solution but that's how it be sometimes.
-                if len(encoded_name) > effective_max and d.driver_name != "Kevin Harvick":
-                    raise ValueError(
-                        f"'{new_name}' too long for field '{d.driver_name}' "
-                        f"(max {effective_max})"
-                    )
+            # Raise error if value exceeds expected max, shouldn't be possible through the text validation
+            # Ignore this check on Harvick. Bad solution but that's how it be sometimes.
+            if len(encoded_name) > effective_max and d.driver_name != "Kevin Harvick":
+                raise ValueError(
+                    f"'{new_name}' too long for field '{d.driver_name}' "
+                    f"(max {effective_max})"
+                )
+            
+            # Go to location of driver name in ARCHIVE0.AR and write
+            archive_position = offset + d.start_byte
+            archive_file.seek(archive_position)
 
-                # Bytes that will be overwritten: replacement length + 1 (for NULL)
-                overwrite_len = len(encoded_name) + 1
+            # Write replacement name and NULL byte
+            archive_file.write(encoded_name + b'\x00')
 
-                # Append null byte to replacement
-                data = encoded_name + b'\x00'
+def restore_defaults(game_dir: str):
+    offset = 0x2C7A1498
 
-                # Write replacement bytes
-                out.write(data)
+    text_path = resource_path("text.bin")
 
-                # Skip over the bytes we've written to maintain alignment
-                src.seek(overwrite_len - 1, 1)
-                offset += overwrite_len
+    with open(text_path, "rb") as original_data, open(f"{game_dir}/ARCHIVE0.AR", "r+b") as archive_file:
+        for d in drivers:
+            archive_pos = offset + d.start_byte
 
-            else:
-                # Write unchanged data to file as is
-                out.write(byte)
-                offset += 1
+            # Restore to max length
+            field_size = d.max_length + 1  # +1 for NULL
 
-    # Once new LDA file is made, use quickbms to apply patch to ARCHIVE0.AR file
-    subprocess.run([
-        quickbms,
-        "-w",
-        "-r",
-        bms_script,
-        f"{game_dir}/cdfiles.DAT",
-        patch_dir
-    ])
+            # read original bytes from text.bin
+            original_data.seek(d.start_byte)
+            data = original_data.read(field_size)
 
-    # Remove LDA files
-    if (DELETE_OUTPUT):
-        os.remove(OUTPUT_FILE)
+            # Write original data into archive
+            archive_file.seek(archive_pos)
+            archive_file.write(data)
