@@ -92,10 +92,12 @@ class LDAPatcherGUI(QWidget):
             self.clean_exit()
 
         # File selection dialog
+        # Basic game install search, open that directory if it exists
+        install_dir = find_install_directory()
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Select ARCHIVE0.AR",
-            "",
+            install_dir,
             "Archive File (ARCHIVE0.AR)"
         )
 
@@ -211,6 +213,22 @@ class LDAPatcherGUI(QWidget):
         QApplication.quit()
         self.close()
         sys.exit(0)
+
+# Function for finding NASCAR '15 install location
+def find_install_directory():
+    # Default install on C drive
+    default_path = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\NASCAR 15\\data"
+
+    if os.path.exists(os.path.join(default_path, "ARCHIVE0.AR")):
+        return default_path
+
+    # Check SteamLibrary folders of other drivers
+    for drive in "DEFGHIJKLMNOPQRSTUVWXYZ":
+        path = f"{drive}:\\SteamLibrary\\steamapps\\common\\NASCAR 15\\data"
+        if os.path.exists(os.path.join(path, "ARCHIVE0.AR")):
+            return path
+
+    return ""
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
