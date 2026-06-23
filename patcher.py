@@ -67,6 +67,7 @@ drivers = [
 # Function for patching ARCHIVE0.AR file
 def patch_file(replacements: dict,
                safe_mode: bool = True,
+               overwrite_hornish: bool = False,
                game_dir: str | None = None):
 
     # Open ARCHIVE0.AR file in binary
@@ -76,6 +77,10 @@ def patch_file(replacements: dict,
 
         # iterate over drivers
         for d in drivers:
+            # Skip Sam Hornish if his name is being overwritten
+            if overwrite_hornish and d.driver_name == "Sam Hornish Jr.":
+                continue
+
             new_name = replacements.get(d.driver_name, d.driver_name)
 
             # Encode name to place as bytes

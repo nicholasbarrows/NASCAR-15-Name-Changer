@@ -199,7 +199,7 @@ class LDAPatcherGUI(QWidget):
                 replacements[name] = text
 
         try:
-            patch_file(replacements, safe_mode=self.safe_mode_checkbox.isChecked(), game_dir=self.game_dir)
+            patch_file(replacements, safe_mode=self.safe_mode_checkbox.isChecked(), overwrite_hornish=self.hornish_checkbox.isChecked(), game_dir=self.game_dir)
             QMessageBox.information(self, "Success", "Game patched successfully!")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
