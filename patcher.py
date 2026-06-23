@@ -103,3 +103,23 @@ def patch_file(replacements: dict,
 
             # Write replacement name and NULL byte
             archive_file.write(encoded_name + b'\x00')
+
+def restore_defaults(game_dir: str):
+    offset = 0x2C7A1498
+
+    text_path = resource_path("text.bin")
+
+    with open(text_path, "rb") as original_data, open(f"{game_dir}/ARCHIVE0.AR", "r+b") as archive_file:
+        for d in drivers:
+            archive_pos = offset + d.start_byte
+
+            # Restore to max length
+            field_size = d.max_length + 1  # +1 for NULL
+
+            # read original bytes from text.bin
+            original_data.seek(d.start_byte)
+            data = original_data.read(field_size)
+
+            # Write original data into archive
+            archive_file.seek(archive_pos)
+            archive_file.write(data)
